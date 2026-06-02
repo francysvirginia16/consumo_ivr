@@ -143,7 +143,7 @@ const tasaFmt=t=>t==null?'—':(t*100).toFixed(1)+'%';
 function tasaColor(t){return t>=.15?'var(--green)':t>=.07?'var(--amber)':'var(--red)';}
 function tasaBg(t){return t>=.15?'rgba(26,158,106,.12)':t>=.07?'rgba(217,119,6,.12)':'rgba(220,38,38,.12)';}
 function tasaChip(t){return `<span class="tasa-chip" style="color:${tasaColor(t)};background:${tasaBg(t)}">${tasaFmt(t)}</span>`;}
-function barCell(v,max,col){const p=max?Math.round(v/max*100):0;return`<div class="bc"><span style="font-size:10px;font-family:var(--fm);color:${col};font-weight:600;min-width:32px;text-align:right">${p}%</span><div class="bb"><div class="bf" style="width:${p}%;background:${col}"></div></div></div>`;}
+function barCell(v,tot,col){const p=tot?parseFloat((v/tot*100).toFixed(1)):0;const bar=Math.round(p);return`<div class="bc"><span style="font-size:10px;font-family:var(--fm);color:${col};font-weight:600;min-width:36px;text-align:right">${p}%</span><div class="bb"><div class="bf" style="width:${bar}%;background:${col}"></div></div></div>`;}
 function totRow(cells){return`<tr class="tot">${cells}</tr>`;}
 function provColor(p){return PCOLS[p]||'#94a3b8';}
 
@@ -192,11 +192,14 @@ function sel(e){
   const el=document.getElementById('sb-'+e);if(el)el.classList.add('active');
   // tab entidad: solo visible en entidad individual, y se activa por defecto
   const tabEnt=document.getElementById('tab-entidad');
+  const tabRes=document.getElementById('tab-resumen');
   if(e==='ALL'){
     tabEnt.style.display='none';
+    tabRes.style.display='';
     if(activeTab==='entidad'){activeTab='resumen';}
   } else {
     tabEnt.style.display='';
+    tabRes.style.display='none';
     activeTab='entidad';
   }
   // sync tab classes
@@ -307,7 +310,7 @@ function renderResumen(rows){
   const byMes=aggByKey(rows,r=>r.mes).sort((a,b)=>a._key.localeCompare(b._key));
   const byEnt=aggByKey(rows,r=>r.entidad).sort((a,b)=>b.ivr-a.ivr);
   const totIvr=byEnt.reduce((a,d)=>a+d.ivr,0);
-  const maxIvr=Math.max(...byEnt.map(d=>d.ivr));
+  const totIvr2=byEnt.reduce((a,d)=>a+d.ivr,0);
 
   let tMes=`<div class="tbl-header"><div class="sec-label">Por Mes</div></div>
   <div class="tbl-wrap"><table class="res"><thead><tr>
@@ -334,20 +337,19 @@ function renderResumen(rows){
     <button class="xl-btn" onclick="exportXL('entidad')">↓ Excel</button>
   </div>
   <div class="tbl-wrap"><table class="res"><thead><tr>
-    <th class="tl">Entidad</th><th>IVRs Total</th><th>% Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
+    <th class="tl">Entidad</th><th>IVRs Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
   </tr></thead><tbody>`;
   byEnt.forEach(d=>{
     const col=ECOLS[ENTS.indexOf(d._key)%ECOLS.length];
-    const pTot=totIvr?(d.ivr/totIvr*100).toFixed(1):0;
     tEnt+=`<tr><td class="tl"><div class="en" style="color:${col}">${d._key}</div></td>
-      <td style="font-weight:600">${fmt(d.ivr)}</td><td>${pTot}%</td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
       <td style="color:var(--green)">${fmt(d.cont)}</td>
       <td>${tasaChip(d.tasa)}</td>
       <td>${fmt(d.casosU)}</td><td style="color:var(--teal)">${fmt(d.telsU)}</td>
-      <td>${barCell(d.ivr,maxIvr,col)}</td>
+      <td>${barCell(d.ivr,totIvr,col)}</td>
     </tr>`;
   });
-  tEnt+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td>100%</td><td style="color:var(--green)">${fmt(byEnt.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byEnt.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byEnt.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
+  tEnt+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td style="color:var(--green)">${fmt(byEnt.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byEnt.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byEnt.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
   tEnt+='</tbody></table></div>';
 
   document.getElementById('cnt').innerHTML=tMes+tEnt+`
@@ -377,7 +379,7 @@ function renderResumen(rows){
 // ── POR DÍA ───────────────────────────────────────────────────────────────────
 function renderDia(rows){
   const byDia=aggByKey(rows,r=>r.dia).sort((a,b)=>a._key.localeCompare(b._key));
-  const maxIvr=Math.max(...byDia.map(d=>d.ivr));
+  const totDia=byDia.reduce((a,d)=>a+d.ivr,0);
 
   let tDia=`<div class="tbl-header"><div class="sec-label">IVRs por Día</div>
     <button class="xl-btn" onclick="exportXL('dia')">↓ Excel</button>
@@ -393,7 +395,7 @@ function renderDia(rows){
       <td style="color:var(--green)">${fmt(d.cont)}</td>
       <td>${tasaChip(d.tasa)}</td>
       <td>${horasAct}</td><td>${horasAct?fmts(Math.round(d.ivr/horasAct)):'—'}</td>
-      <td>${barCell(d.ivr,maxIvr,'var(--burl)')}</td>
+      <td>${barCell(d.ivr,totDia,'var(--burl)')}</td>
     </tr>`;
     tot.ivr+=d.ivr;tot.cont+=d.cont;
   });
@@ -432,27 +434,27 @@ function renderDia(rows){
 function renderHora(rows){
   const byHora=aggByKey(rows,r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key));
   const totIvr=byHora.reduce((a,d)=>a+d.ivr,0);
-  const maxIvr=Math.max(...byHora.map(d=>d.ivr));
+  const totHora=byHora.reduce((a,d)=>a+d.ivr,0);
 
   let tHora=`<div class="tbl-header"><div class="sec-label">IVRs y Contactabilidad por Hora</div>
     <button class="xl-btn" onclick="exportXL('hora')">↓ Excel</button>
   </div>
   <div class="tbl-wrap"><table class="res"><thead><tr>
-    <th class="tl">Hora</th><th>IVRs Total</th><th>% del Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Participación IVR</th>
+    <th class="tl">Hora</th><th>IVRs Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Participación</th>
   </tr></thead><tbody>`;
   let totC=0;
   byHora.forEach(d=>{
     const p=totIvr?(d.ivr/totIvr*100).toFixed(1):0;
     tHora+=`<tr><td class="tl"><div class="en">${d._key}:00 hs</div></td>
-      <td style="font-weight:600">${fmt(d.ivr)}</td><td>${p}%</td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
       <td style="color:var(--green)">${fmt(d.cont)}</td>
       <td>${tasaChip(d.tasa)}</td>
-      <td>${barCell(d.ivr,maxIvr,'var(--burl)')}</td>
+      <td>${barCell(d.ivr,totHora,'var(--burl)')}</td>
     </tr>`;
     totC+=d.cont;
   });
   const tasaTot=totIvr?totC/totIvr:0;
-  tHora+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td>100%</td><td style="color:var(--green)">${fmt(totC)}</td><td>${tasaChip(tasaTot)}</td><td></td>`);
+  tHora+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td style="color:var(--green)">${fmt(totC)}</td><td>${tasaChip(tasaTot)}</td><td></td>`);
   tHora+='</tbody></table></div>';
 
   const getHCol=h=>{const v=parseInt(h);if(v<=7)return'#475569';if(v<=9)return'#6366f1';if(v<=12)return'#d97706';if(v<=17)return'#c42840';if(v<=20)return'#8b1c2a';return'#475569';};
@@ -541,8 +543,8 @@ function renderEntidad(rows){
     const byMes=aggByKey(eRows,r=>r.mes).sort((a,b)=>a._key.localeCompare(b._key));
     const byProv=aggByKey(eRows,r=>r.proveedor).sort((a,b)=>b.ivr-a.ivr);
     const byHora=aggByKey(eRows,r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key));
-    const maxHivr=Math.max(...byHora.map(d=>d.ivr));
-    const maxPivr=Math.max(...byProv.map(d=>d.ivr));
+    const totHivr2=byHora.reduce((a,d)=>a+d.ivr,0);
+    const totPivr=byProv.reduce((a,d)=>a+d.ivr,0);
     const maxMivr=Math.max(...byMes.map(d=>d.ivr));
     const canvH='cvH_'+e.replace(/[^a-z0-9]/gi,'_');
     const canvT='cvT_'+e.replace(/[^a-z0-9]/gi,'_');
@@ -570,25 +572,25 @@ function renderEntidad(rows){
         <td style="font-weight:600">${fmt(d.ivr)}</td>
         <td style="color:var(--green)">${fmt(d.cont)}</td><td>${tasaChip(d.tasa)}</td>
         <td>${fmt(d.casosU)}</td>
-        <td>${barCell(d.ivr,maxPivr,provColor(d._key))}</td></tr>`;
+        <td>${barCell(d.ivr,totPivr,provColor(d._key))}</td></tr>`;
     });
     tProv+=totRow(`<td class="tl">TOTAL</td><td>${fmt(tot.ivr)}</td><td style="color:var(--green)">${fmt(tot.cont)}</td><td>${tasaChip(tot.tasa)}</td><td>${fmt(tot.casosU)}</td><td></td>`);
     tProv+='</tbody></table>';
 
     // Tabla por hora
     let tHora=`<table class="res" style="width:100%"><thead><tr>
-      <th class="tl">Hora</th><th>IVRs Discados</th><th>% Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Part.</th>
+      <th class="tl">Hora</th><th>IVRs Discados</th><th>Contactados</th><th>Tasa Contacto</th><th>Part.</th>
     </tr></thead><tbody>`;
     const totHivr=byHora.reduce((a,d)=>a+d.ivr,0);
     byHora.forEach(d=>{
       const p=totHivr?(d.ivr/totHivr*100).toFixed(1):0;
       tHora+=`<tr><td class="tl">${d._key}:00 hs</td>
-        <td style="font-weight:600">${fmt(d.ivr)}</td><td>${p}%</td>
+        <td style="font-weight:600">${fmt(d.ivr)}</td>
         <td style="color:var(--green)">${fmt(d.cont)}</td>
         <td>${tasaChip(d.tasa)}</td>
-        <td>${barCell(d.ivr,maxHivr,col)}</td></tr>`;
+        <td>${barCell(d.ivr,totHivr2,col)}</td></tr>`;
     });
-    tHora+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totHivr)}</td><td>100%</td><td style="color:var(--green)">${fmt(tot.cont)}</td><td>${tasaChip(tot.tasa)}</td><td></td>`);
+    tHora+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totHivr)}</td><td style="color:var(--green)">${fmt(tot.cont)}</td><td>${tasaChip(tot.tasa)}</td><td></td>`);
     tHora+='</tbody></table>';
 
     html+=`<div class="chb" style="margin-bottom:18px">
@@ -643,7 +645,7 @@ function renderEntidad(rows){
 function renderProveedor(rows){
   const byProv=aggByKey(rows,r=>r.proveedor).sort((a,b)=>b.ivr-a.ivr);
   const totIvr=byProv.reduce((a,d)=>a+d.ivr,0);
-  const maxIvr=Math.max(...byProv.map(d=>d.ivr));
+  const totProvIvr=byProv.reduce((a,d)=>a+d.ivr,0);
   const tasaTot=totIvr?byProv.reduce((a,d)=>a+d.cont,0)/totIvr:0;
 
   // Tabla resumen por proveedor
@@ -651,20 +653,20 @@ function renderProveedor(rows){
     <button class="xl-btn" onclick="exportXL('proveedor')">↓ Excel</button>
   </div>
   <div class="tbl-wrap"><table class="res"><thead><tr>
-    <th class="tl">Proveedor</th><th>IVRs Total</th><th>% Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
+    <th class="tl">Proveedor</th><th>IVRs Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
   </tr></thead><tbody>`;
   byProv.forEach(d=>{
     const col=provColor(d._key);
     const p=totIvr?(d.ivr/totIvr*100).toFixed(1):0;
     tProv+=`<tr><td class="tl"><div class="en" style="color:${col}">${d._key}</div></td>
-      <td style="font-weight:600">${fmt(d.ivr)}</td><td>${p}%</td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
       <td style="color:var(--green)">${fmt(d.cont)}</td>
       <td>${tasaChip(d.tasa)}</td>
       <td>${fmt(d.casosU)}</td><td style="color:var(--teal)">${fmt(d.telsU)}</td>
-      <td>${barCell(d.ivr,maxIvr,col)}</td>
+      <td>${barCell(d.ivr,totProvIvr,col)}</td>
     </tr>`;
   });
-  tProv+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td>100%</td><td style="color:var(--green)">${fmt(byProv.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byProv.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byProv.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
+  tProv+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td style="color:var(--green)">${fmt(byProv.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byProv.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byProv.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
   tProv+='</tbody></table></div>';
 
   // Tabla proveedor × mes
