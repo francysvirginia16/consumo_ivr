@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Dashboard IVR — Consumo por Día / Hora / Entidad</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f4f1f2;--s1:#ffffff;--s2:#faf7f8;--s3:#f0eaeb;--bd:#e0d4d6;
+  --green:#1a9e6a;--amber:#d97706;--red:#dc2626;
+  --txt:#1a0d0f;--muted:#8a6068;--dim:#e8dfe0;
+  --f:'DM Sans',sans-serif;--fm:'DM Mono',monospace;
+  --burdo:#8b1c2a;--burdo-light:#c42840;--burdo-bright:#e8304a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--f);font-size:12px;height:100vh;display:flex;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:190px;min-width:190px;background:var(--burdo);display:flex;flex-direction:column;overflow-y:auto}
+.sb-logo{padding:14px 14px 10px;font-size:13px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,.15)}
+.sb-logo small{display:block;font-size:10px;font-weight:400;opacity:.6;margin-top:2px}
+.sb-item{padding:9px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.1);border-left:3px solid transparent;transition:all .12s}
+.sb-item:hover{background:rgba(255,255,255,.1)}
+.sb-item.active{background:rgba(255,255,255,.18);border-left-color:#fff}
+.sb-item.active .sb-name{color:#fff;font-weight:600}
+.sb-item.active .sb-val{color:#fff;opacity:.7}
+.sb-name{font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.85)}
+.sb-val{font-size:10px;font-family:var(--fm);color:rgba(255,255,255,.55)}
+.sb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+.topbar{background:var(--s1);border-bottom:2px solid var(--burdo);padding:12px 20px;flex-shrink:0}
+.topbar-row1{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.topbar-title{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.06em}
+.topbar-sub{font-size:12px;color:var(--muted)}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.g::before{background:var(--green)}.kpi.b::before{background:linear-gradient(90deg,var(--burdo-light),var(--burdo-bright))}.kpi.a::before{background:var(--amber)}.kpi.r::before{background:var(--red)}.kpi.p::before{background:#6366f1}
+.kpi-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.kpi-v{font-size:22px;font-weight:600;font-family:var(--fm);line-height:1}
+.kpi-s{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* CONTENT */
+.content{flex:1;overflow:auto;padding:16px 20px}
+
+/* FILTER PANEL */
+.filter-panel{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+.filter-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.filter-row:last-child{margin-bottom:0}
+.filter-label{font-size:10px;color:var(--burdo);font-weight:600;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;min-width:52px}
+.chip{padding:3px 9px;border-radius:20px;border:1px solid var(--bd);background:none;color:var(--muted);font-size:10px;cursor:pointer;transition:all .12s;font-family:var(--f)}
+.chip:hover{border-color:var(--burdo-light);color:var(--burdo-light)}
+.chip.on{border-color:var(--burdo-light);background:rgba(196,40,64,.1);color:var(--burdo-light);font-weight:600}
+.chip.reset{background:var(--s3)}
+
+/* TABS */
+.tab-bar{display:flex;gap:6px;margin-bottom:14px}
+.tab{padding:5px 14px;border-radius:20px;border:1px solid var(--bd);background:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--f);transition:all .12s;font-weight:500}
+.tab.on{border-color:var(--burdo-light);background:rgba(196,40,64,.12);color:var(--burdo-light);font-weight:600}
+
+/* SECTION LABEL */
+.sec-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--burdo);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--burdo);opacity:.25}
+.tbl-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.tbl-header .sec-label{flex:1;margin-right:10px;margin-bottom:0}
+.tbl-header .sec-label::after{display:none}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--bd);margin-bottom:16px}
+table.res{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
+table.res thead th{padding:7px 10px;text-align:right;font-size:10px;font-weight:500;color:var(--burdo);text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--bd);background:var(--s2)}
+table.res thead th.tl{text-align:left;padding-left:14px}
+table.res tbody tr{border-bottom:1px solid var(--bd);transition:background .1s}
+table.res tbody tr:hover{background:var(--s2)}
+table.res tbody tr.tot td{background:var(--s3);font-weight:600;border-top:2px solid var(--burdo-light)}
+table.res td{padding:7px 10px;text-align:right;font-family:var(--fm)}
+table.res td.tl{text-align:left;font-family:var(--f);padding-left:14px}
+.en{font-weight:600;font-size:12px}
+.es{font-size:10px;color:var(--muted);margin-top:1px}
+.bc{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.bb{width:60px;height:5px;background:var(--dim);border-radius:3px;overflow:hidden;flex-shrink:0}
+.bf{height:100%;border-radius:3px}
+.pt{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;min-width:40px;text-align:center}
+.pct2{font-size:9px;color:var(--muted);margin-top:1px}
+.hm-cell{width:36px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;font-size:9px;font-family:var(--fm);font-weight:500;cursor:default}
+
+/* CHARTS */
+.ch-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.ch-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+.ch-row-1{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px}
+.chb{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px}
+.cht{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+
+/* EXCEL BTN */
+.xl-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;border:1px solid rgba(139,28,42,.3);background:rgba(139,28,42,.06);color:var(--burdo);font-size:10px;font-weight:600;cursor:pointer;font-family:var(--f);transition:all .12s}
+.xl-btn:hover{background:rgba(139,28,42,.12);border-color:var(--burdo)}
+
+/* HEATMAP */
+.hm-wrap{overflow-x:auto}
+.hm-grid{display:inline-grid;gap:2px;padding:8px}
+.hm-label{font-size:9px;color:var(--muted);font-family:var(--fm);display:flex;align-items:center;justify-content:flex-end;padding-right:4px}
+.hm-hlabel{font-size:9px;color:var(--muted);font-family:var(--fm);text-align:center}
+.legend-hm{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);margin-top:8px}
+.legend-hm-bar{display:flex;gap:2px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-logo">BML Collection<small>IVR — Consumo</small></div>
+  <div id="sbItems"></div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-row1">
+      <div class="topbar-title" id="mTitle">Consumo IVR</div>
+      <span class="badge" id="mBadge"></span>
+      <span class="topbar-sub" id="mSub"></span>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi b"><div class="kpi-l">IVRs Total</div><div class="kpi-v" id="kv-ivr">—</div><div class="kpi-s">llamadas generadas</div></div>
+      <div class="kpi g"><div class="kpi-l">Casos c/ IVR</div><div class="kpi-v" id="kv-casos" style="color:var(--green)">—</div><div class="kpi-s" id="kv-pcasos">—</div></div>
+      <div class="kpi a"><div class="kpi-l">Teléfonos c/ IVR</div><div class="kpi-v" id="kv-tels">—</div><div class="kpi-s" id="kv-ptels">—</div></div>
+      <div class="kpi p"><div class="kpi-l">Prom. IVR / Día</div><div class="kpi-v" id="kv-avgd" style="color:#6366f1">—</div><div class="kpi-s" id="kv-dias">—</div></div>
+      <div class="kpi r"><div class="kpi-l">Prom. IVR / Hora</div><div class="kpi-v" id="kv-avgh">—</div><div class="kpi-s">sobre horas activas</div></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- FILTER PANEL -->
+    <div class="filter-panel" id="filter-panel">
+      <div class="filter-row" id="fr-mes"><span class="filter-label">Mes</span></div>
+      <div class="filter-row" id="fr-ent"><span class="filter-label">Entidad</span></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar" id="tab-bar">
+      <span class="tab on" id="tab-resumen"   onclick="setTab('resumen')">Resumen</span>
+      <span class="tab"   id="tab-dia"        onclick="setTab('dia')">Por Día</span>
+      <span class="tab"   id="tab-hora"       onclick="setTab('hora')">Por Hora</span>
+      <span class="tab"   id="tab-heatmap"    onclick="setTab('heatmap')">Heatmap Día×Hora</span>
+      <span class="tab"   id="tab-entidad"    onclick="setTab('entidad')">Por Entidad</span>
+    </div>
+
+    <div id="cnt"></div>
+  </div>
+</div>
+
+<div class="csv-toast" id="csvToast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a9e6a;color:#fff;padding:8px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:9999;display:none;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const CSV_URL = 'consumo_ivr.csv';
+const ENTS_COLORS = ['#c42840','#1a9e6a','#d97706','#6366f1','#0ea5e9','#f43f5e','#10b981','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#22c55e','#eab308','#3b82f6','#ec4899','#64748b'];
+const tC = 'rgba(26,13,15,.5)', gC = 'rgba(26,13,15,.08)';
+const HORAS = Array.from({length:16}, (_,i)=>i+8); // 8..23
+
+let allRows = [], ENTS = [], MESES = [];
+let activeMeses = new Set(), activeEnts = new Set();
+let curEnt = 'ALL', activeTab = 'resumen';
+let charts = [];
+
+const fmt  = n => n==null ? '—' : parseInt(n).toLocaleString('es-AR');
+const fmts = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'k':String(Math.round(n));
+const num  = s => parseInt(s)||0;
+const pct  = (a,b) => b ? ((a/b)*100).toFixed(1)+'%' : '—';
+
+// ── CSV ────────────────────────────────────────────────────────────────────────
+async function loadCSV(){
+  const r = await fetch(CSV_URL);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const txt = await r.text();
+  const lines = txt.trim().split('\n');
+  const headers = lines[0].split(',').map(h=>h.trim());
+  allRows = lines.slice(1).filter(l=>l.trim()).map(l=>{
+    const v = l.split(',');
+    const o = {};
+    headers.forEach((h,i)=> o[h] = (v[i]||'').trim());
+    return o;
+  });
+  MESES = [...new Set(allRows.map(r=>r.mes))].sort();
+  ENTS  = [...new Set(allRows.map(r=>r.entidad))].sort();
+  activeMeses = new Set(MESES);
+  activeEnts  = new Set(ENTS);
+  buildSidebar();
+  buildFilters();
+  sel('ALL');
+  showToast('✓ Datos cargados');
+}
+
+function showToast(msg, err=false){
+  const t = document.getElementById('csvToast');
+  t.textContent = msg; t.style.background = err?'#dc2626':'#1a9e6a'; t.style.display='block';
+  setTimeout(()=>t.style.display='none', 3000);
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
+function buildSidebar(){
+  const sb = document.getElementById('sbItems'); sb.innerHTML='';
+  const allEl = document.createElement('div');
+  allEl.className='sb-item'; allEl.id='sb-ALL';
+  const totAll = allRows.reduce((a,r)=>a+num(r.ivrs_total),0);
+  allEl.innerHTML = `<span class="sb-name">Todas</span><span class="sb-val">${fmts(totAll)}</span>`;
+  allEl.onclick = ()=>sel('ALL');
+  sb.appendChild(allEl);
+  ENTS.forEach((e,i)=>{
+    const tot = allRows.filter(r=>r.entidad===e).reduce((a,r)=>a+num(r.ivrs_total),0);
+    const el = document.createElement('div');
+    el.className='sb-item'; el.id='sb-'+e;
+    el.innerHTML=`<span class="sb-name"><span class="sb-dot" style="background:${ENTS_COLORS[i%ENTS_COLORS.length]}"></span>${e}</span><span class="sb-val">${fmts(tot)}</span>`;
+    el.onclick=()=>sel(e);
+    sb.appendChild(el);
+  });
+}
+
+function sel(e){
+  curEnt = e;
+  document.querySelectorAll('.sb-item').forEach(el=>el.classList.remove('active'));
+  const el = document.getElementById('sb-'+e);
+  if(el) el.classList.add('active');
+  destroyCharts();
+  render();
+}
+
+// ── FILTROS ────────────────────────────────────────────────────────────────────
+function buildFilters(){
+  // Meses
+  const frMes = document.getElementById('fr-mes');
+  const bAllM = document.createElement('button');
+  bAllM.className='chip reset'; bAllM.textContent='Todos';
+  bAllM.onclick=()=>{ activeMeses=new Set(MESES); syncChips('mes',activeMeses); render(); };
+  frMes.appendChild(bAllM);
+  MESES.forEach(m=>{
+    const b = document.createElement('button');
+    b.className='chip on'; b.dataset.val=m; b.dataset.group='mes';
+    b.textContent = m.slice(0,7); // "2026-03"
+    b.onclick=()=>{
+      if(activeMeses.has(m)){if(activeMeses.size>1)activeMeses.delete(m);}
+      else activeMeses.add(m);
+      syncChips('mes',activeMeses); render();
+    };
+    frMes.appendChild(b);
+  });
+  // Entidades (solo en vista ALL)
+  const frEnt = document.getElementById('fr-ent');
+  const bAllE = document.createElement('button');
+  bAllE.className='chip reset'; bAllE.textContent='Todas';
+  bAllE.onclick=()=>{ activeEnts=new Set(ENTS); syncChips('ent',activeEnts); render(); };
+  frEnt.appendChild(bAllE);
+  ENTS.forEach((e,i)=>{
+    const b = document.createElement('button');
+    b.className='chip on'; b.dataset.val=e; b.dataset.group='ent';
+    b.textContent = e;
+    const col = ENTS_COLORS[i%ENTS_COLORS.length];
+    b.style.borderColor=col; b.style.color=col; b.style.background='rgba(0,0,0,.03)';
+    b.dataset.color=col;
+    b.onclick=()=>{
+      if(activeEnts.has(e)){if(activeEnts.size>1)activeEnts.delete(e);}
+      else activeEnts.add(e);
+      syncChips('ent',activeEnts); render();
+    };
+    frEnt.appendChild(b);
+  });
+}
+
+function syncChips(group, set){
+  document.querySelectorAll(`[data-group="${group}"]`).forEach(b=>{
+    if(b.dataset.color){
+      b.style.opacity = set.has(b.dataset.val)?'1':'0.3';
+    } else {
+      b.className = set.has(b.dataset.val)?'chip on':'chip';
+    }
+  });
+}
+
+function filteredRows(){
+  const rows = allRows.filter(r => activeMeses.has(r.mes));
+  if(curEnt !== 'ALL') return rows.filter(r=>r.entidad===curEnt);
+  return rows.filter(r=>activeEnts.has(r.entidad));
+}
+
+// ── AGGREGATE ──────────────────────────────────────────────────────────────────
+function aggRows(rows){
+  return {
+    ivr:   rows.reduce((a,r)=>a+num(r.ivrs_total),0),
+    casos: rows.reduce((a,r)=>a+num(r.casos_con_ivr),0),
+    tels:  rows.reduce((a,r)=>a+num(r.telefonos_con_ivr),0),
+  };
+}
+
+function aggByKey(rows, keyFn){
+  const map = {};
+  rows.forEach(r=>{
+    const k = keyFn(r);
+    if(!map[k]) map[k]={_key:k, rows:[]};
+    map[k].rows.push(r);
+  });
+  return Object.values(map).map(g=>({_key:g._key,...aggRows(g.rows)}));
+}
+
+// ── TOPBAR ─────────────────────────────────────────────────────────────────────
+function updateKPIs(rows){
+  const t = aggRows(rows);
+  const dias = [...new Set(rows.map(r=>r.dia))].length;
+  const horas = [...new Set(rows.map(r=>r.hora))].length;
+  document.getElementById('mTitle').textContent = curEnt==='ALL' ? 'Consumo IVR' : 'Consumo IVR — '+curEnt;
+  document.getElementById('mSub').textContent = `${activeMeses.size} mes${activeMeses.size>1?'es':''} · ${dias} días`;
+  const col = '#6366f1';
+  document.getElementById('mBadge').textContent = fmts(t.ivr)+' IVRs';
+  document.getElementById('mBadge').style.cssText='background:rgba(99,102,241,.12);color:#6366f1;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.06em';
+  document.getElementById('kv-ivr').textContent   = fmt(t.ivr);
+  document.getElementById('kv-casos').textContent = fmt(t.casos);
+  document.getElementById('kv-pcasos').textContent= pct(t.casos,t.ivr)+' cobertura';
+  document.getElementById('kv-tels').textContent  = fmt(t.tels);
+  document.getElementById('kv-ptels').textContent = pct(t.tels,t.ivr)+' del total IVR';
+  document.getElementById('kv-avgd').textContent  = dias ? fmts(Math.round(t.ivr/dias)) : '—';
+  document.getElementById('kv-dias').textContent  = dias+' días activos';
+  document.getElementById('kv-avgh').textContent  = (dias&&horas) ? fmts(Math.round(t.ivr/(dias*horas||1))) : '—';
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────────
+function setTab(tab){
+  activeTab = tab;
+  ['resumen','dia','hora','heatmap','entidad'].forEach(t=>{
+    document.getElementById('tab-'+t).className = 'tab'+(t===tab?' on':'');
+  });
+  destroyCharts();
+  render();
+}
+
+function destroyCharts(){
+  charts.forEach(c=>{try{c.destroy();}catch(x){}});
+  charts=[];
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────────────────────
+function render(){
+  const rows = filteredRows();
+  updateKPIs(rows);
+  // Ocultar filtro de entidades en vista entidad individual
+  document.getElementById('fr-ent').style.display = curEnt==='ALL' ? '' : 'none';
+
+  if(activeTab==='resumen')  renderResumen(rows);
+  else if(activeTab==='dia') renderDia(rows);
+  else if(activeTab==='hora')renderHora(rows);
+  else if(activeTab==='heatmap') renderHeatmap(rows);
+  else if(activeTab==='entidad') renderEntidad(rows);
+}
+
+// ── TAB: RESUMEN ───────────────────────────────────────────────────────────────
+function renderResumen(rows){
+  const byMes = aggByKey(rows, r=>r.mes).sort((a,b)=>a._key.localeCompare(b._key));
+  const byEnt = aggByKey(rows, r=>r.entidad).sort((a,b)=>b.ivr-a.ivr);
+  const maxIvr = Math.max(...byEnt.map(d=>d.ivr));
+
+  // Construir tabla por mes
+  let tblMes = `<div class="tbl-header"><div class="sec-label">Resumen por Mes</div></div>
+  <div class="tbl-wrap"><table class="res"><thead><tr>
+    <th class="tl">Mes</th><th>IVRs Total</th><th>Casos c/ IVR</th><th>Teléfonos c/ IVR</th><th>IVR/Día</th><th>Días</th>
+  </tr></thead><tbody>`;
+  let totM={ivr:0,casos:0,tels:0};
+  byMes.forEach(d=>{
+    const diasMes=[...new Set(rows.filter(r=>r.mes===d._key).map(r=>r.dia))].length;
+    tblMes+=`<tr><td class="tl"><div class="en">${d._key}</div></td>
+      <td>${fmt(d.ivr)}</td>
+      <td style="color:var(--green)">${fmt(d.casos)}</td>
+      <td style="color:var(--amber)">${fmt(d.tels)}</td>
+      <td>${diasMes?fmts(Math.round(d.ivr/diasMes)):'—'}</td>
+      <td>${diasMes}</td>
+    </tr>`;
+    totM.ivr+=d.ivr; totM.casos+=d.casos; totM.tels+=d.tels;
+  });
+  const diasTot=[...new Set(rows.map(r=>r.dia))].length;
+  tblMes+=`<tr class="tot"><td class="tl">TOTAL</td><td>${fmt(totM.ivr)}</td><td style="color:var(--green)">${fmt(totM.casos)}</td><td style="color:var(--amber)">${fmt(totM.tels)}</td><td>${diasTot?fmts(Math.round(totM.ivr/diasTot)):'—'}</td><td>${diasTot}</td></tr>`;
+  tblMes += '</tbody></table></div>';
+
+  // Tabla por entidad
+  let tblEnt = `<div class="tbl-header"><div class="sec-label">Resumen por Entidad</div>
+    <button class="xl-btn" onclick="exportXL('entidad')">↓ Excel</button>
+  </div>
+  <div class="tbl-wrap"><table class="res"><thead><tr>
+    <th class="tl">Entidad</th><th>IVRs Total</th><th>% del Total</th><th>Casos c/ IVR</th><th>Teléfonos c/ IVR</th><th>Participación</th>
+  </tr></thead><tbody>`;
+  byEnt.forEach((d,i)=>{
+    const pShare = maxIvr ? Math.round(d.ivr/maxIvr*100) : 0;
+    const pTot   = totM.ivr ? (d.ivr/totM.ivr*100).toFixed(1) : 0;
+    tblEnt+=`<tr><td class="tl"><div class="en" style="color:${ENTS_COLORS[ENTS.indexOf(d._key)%ENTS_COLORS.length]}">${d._key}</div></td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
+      <td>${pTot}%</td>
+      <td style="color:var(--green)">${fmt(d.casos)}</td>
+      <td style="color:var(--amber)">${fmt(d.tels)}</td>
+      <td><div class="bc"><div class="bb"><div class="bf" style="width:${pShare}%;background:${ENTS_COLORS[ENTS.indexOf(d._key)%ENTS_COLORS.length]}"></div></div></div></td>
+    </tr>`;
+  });
+  tblEnt += `<tr class="tot"><td class="tl">TOTAL</td><td>${fmt(totM.ivr)}</td><td>100%</td><td style="color:var(--green)">${fmt(totM.casos)}</td><td style="color:var(--amber)">${fmt(totM.tels)}</td><td></td></tr>`;
+  tblEnt += '</tbody></table></div>';
+
+  document.getElementById('cnt').innerHTML=`
+    <div class="ch-row">
+      <div class="chb"><div class="cht">IVRs por Mes</div><canvas id="ch-mes" height="180"></canvas></div>
+      <div class="chb"><div class="cht">Distribución por Entidad</div><canvas id="ch-ent" height="180"></canvas></div>
+    </div>
+    ${tblMes}${tblEnt}`;
+
+  // Gráfico meses
+  const cMes = new Chart(document.getElementById('ch-mes'),{type:'bar',data:{
+    labels: byMes.map(d=>d._key),
+    datasets:[
+      {label:'IVRs Total',data:byMes.map(d=>d.ivr),backgroundColor:'rgba(139,28,42,.7)',borderRadius:4},
+      {label:'Casos c/ IVR',data:byMes.map(d=>d.casos),backgroundColor:'rgba(26,158,106,.6)',borderRadius:4},
+    ]
+  },options:{responsive:true,plugins:{legend:{labels:{color:tC,font:{size:10}},position:'bottom'},
+    tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:tC,font:{size:10}},grid:{display:false}},
+            y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+  charts.push(cMes);
+
+  // Gráfico donut entidades
+  const cEnt = new Chart(document.getElementById('ch-ent'),{type:'doughnut',data:{
+    labels: byEnt.map(d=>d._key),
+    datasets:[{data:byEnt.map(d=>d.ivr),backgroundColor:ENTS.map((_,i)=>ENTS_COLORS[i%ENTS_COLORS.length]),borderWidth:1}]
+  },options:{responsive:true,plugins:{legend:{labels:{color:tC,font:{size:10}},position:'right'},
+    tooltip:{callbacks:{label:c=>`${c.label}: ${fmt(c.raw)} (${(c.raw/totM.ivr*100).toFixed(1)}%)`}}}}});
+  charts.push(cEnt);
+}
+
+// ── TAB: POR DÍA ──────────────────────────────────────────────────────────────
+function renderDia(rows){
+  const byDia = aggByKey(rows, r=>r.dia).sort((a,b)=>a._key.localeCompare(b._key));
+  const maxIvr = Math.max(...byDia.map(d=>d.ivr));
+  const labels = byDia.map(d=>d._key.slice(5)); // "03-02"
+
+  // Agrupar por mes para colores
+  const byMesData = {};
+  MESES.forEach((m,i)=>{
+    const mRows = byDia.filter(d=>d._key.startsWith(m));
+    if(mRows.length) byMesData[m]={data:mRows,color:['#c42840','#6366f1','#d97706','#1a9e6a'][i%4]};
+  });
+
+  document.getElementById('cnt').innerHTML=`
+    <div class="ch-row-1">
+      <div class="chb"><div class="cht">IVRs por Día<span id="dia-mes-sel" style="font-size:9px;font-family:var(--fm)"></span></div><canvas id="ch-dia" height="140"></canvas></div>
+    </div>
+    <div class="tbl-header"><div class="sec-label">Detalle por Día</div>
+      <button class="xl-btn" onclick="exportXL('dia')">↓ Excel</button>
+    </div>
+    <div class="tbl-wrap"><table class="res"><thead><tr>
+      <th class="tl">Fecha</th><th>IVRs Total</th><th>Casos c/ IVR</th><th>Teléfonos c/ IVR</th><th>Horas Activas</th><th>IVR/Hora</th><th>Participación</th>
+    </tr></thead><tbody id="tbody-dia"></tbody></table></div>`;
+
+  // Tabla
+  let html = '';
+  let tot = {ivr:0,casos:0,tels:0};
+  byDia.forEach(d=>{
+    const horasAct = [...new Set(rows.filter(r=>r.dia===d._key).map(r=>r.hora))].length;
+    const pShare = maxIvr?Math.round(d.ivr/maxIvr*100):0;
+    html+=`<tr><td class="tl"><div class="en">${d._key}</div></td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
+      <td style="color:var(--green)">${fmt(d.casos)}</td>
+      <td style="color:var(--amber)">${fmt(d.tels)}</td>
+      <td>${horasAct}</td>
+      <td>${horasAct?fmts(Math.round(d.ivr/horasAct)):'—'}</td>
+      <td><div class="bc"><div class="bb"><div class="bf" style="width:${pShare}%;background:var(--burdo-light)"></div></div></div></td>
+    </tr>`;
+    tot.ivr+=d.ivr; tot.casos+=d.casos; tot.tels+=d.tels;
+  });
+  html+=`<tr class="tot"><td class="tl">TOTAL</td><td>${fmt(tot.ivr)}</td><td style="color:var(--green)">${fmt(tot.casos)}</td><td style="color:var(--amber)">${fmt(tot.tels)}</td><td></td><td></td><td></td></tr>`;
+  document.getElementById('tbody-dia').innerHTML=html;
+
+  // Gráfico línea multi-mes
+  const datasets = Object.entries(byMesData).map(([m,d])=>({
+    label:m, data:d.data.map(r=>r.ivr),
+    borderColor:d.color, backgroundColor:d.color+'33',
+    tension:.3, pointRadius:3, fill:false
+  }));
+  const cDia = new Chart(document.getElementById('ch-dia'),{type:'line',data:{
+    labels:byDia.map(d=>d._key.slice(5)), datasets
+  },options:{responsive:true,
+    plugins:{legend:{labels:{color:tC,font:{size:10}},position:'bottom'},
+      tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:tC,font:{size:9},autoSkip:true,maxTicksLimit:31},grid:{display:false}},
+            y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+  charts.push(cDia);
+}
+
+// ── TAB: POR HORA ─────────────────────────────────────────────────────────────
+function renderHora(rows){
+  const byHora = aggByKey(rows, r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key));
+
+  document.getElementById('cnt').innerHTML=`
+    <div class="ch-row">
+      <div class="chb"><div class="cht">IVRs por Franja Horaria</div><canvas id="ch-hora" height="200"></canvas></div>
+      <div class="chb"><div class="cht">Casos c/ IVR por Hora</div><canvas id="ch-hora2" height="200"></canvas></div>
+    </div>
+    <div class="tbl-header"><div class="sec-label">Detalle por Hora</div>
+      <button class="xl-btn" onclick="exportXL('hora')">↓ Excel</button>
+    </div>
+    <div class="tbl-wrap"><table class="res"><thead><tr>
+      <th class="tl">Hora</th><th>IVRs Total</th><th>% del Total</th><th>Casos c/ IVR</th><th>Teléfonos c/ IVR</th><th>Participación</th>
+    </tr></thead><tbody id="tbody-hora"></tbody></table></div>`;
+
+  const totIvr = byHora.reduce((a,d)=>a+d.ivr,0);
+  const maxIvr = Math.max(...byHora.map(d=>d.ivr));
+  let html='';
+  byHora.forEach(d=>{
+    const p = totIvr?(d.ivr/totIvr*100).toFixed(1):0;
+    const pBar = maxIvr?Math.round(d.ivr/maxIvr*100):0;
+    html+=`<tr><td class="tl"><div class="en">${d._key}:00 hs</div></td>
+      <td style="font-weight:600">${fmt(d.ivr)}</td>
+      <td>${p}%</td>
+      <td style="color:var(--green)">${fmt(d.casos)}</td>
+      <td style="color:var(--amber)">${fmt(d.tels)}</td>
+      <td><div class="bc"><div class="bb"><div class="bf" style="width:${pBar}%;background:var(--burdo-light)"></div></div></div></td>
+    </tr>`;
+  });
+  html+=`<tr class="tot"><td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td>100%</td><td></td><td></td><td></td></tr>`;
+  document.getElementById('tbody-hora').innerHTML=html;
+
+  // Gráfico barras horas
+  const getHoraColor = h => {
+    const v = parseInt(h);
+    if(v<=9) return '#6366f1';
+    if(v<=12) return '#d97706';
+    if(v<=17) return '#c42840';
+    if(v<=20) return '#8b1c2a';
+    return '#475569';
+  };
+  const cH = new Chart(document.getElementById('ch-hora'),{type:'bar',data:{
+    labels:byHora.map(d=>d._key+':00'),
+    datasets:[{label:'IVRs',data:byHora.map(d=>d.ivr),backgroundColor:byHora.map(d=>getHoraColor(d._key)),borderRadius:4}]
+  },options:{responsive:true,plugins:{legend:{display:false},
+    tooltip:{callbacks:{label:c=>`IVRs: ${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:tC,font:{size:9}},grid:{display:false}},
+            y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+  charts.push(cH);
+
+  const cH2 = new Chart(document.getElementById('ch-hora2'),{type:'line',data:{
+    labels:byHora.map(d=>d._key+':00'),
+    datasets:[
+      {label:'Casos c/ IVR',data:byHora.map(d=>d.casos),borderColor:'#1a9e6a',backgroundColor:'rgba(26,158,106,.1)',tension:.3,fill:true,pointRadius:4},
+      {label:'Teléfonos c/ IVR',data:byHora.map(d=>d.tels),borderColor:'#d97706',backgroundColor:'rgba(217,119,6,.08)',tension:.3,fill:false,pointRadius:3},
+    ]
+  },options:{responsive:true,plugins:{legend:{labels:{color:tC,font:{size:10}},position:'bottom'},
+    tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:tC,font:{size:9}},grid:{display:false}},
+            y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+  charts.push(cH2);
+}
+
+// ── TAB: HEATMAP DÍA × HORA ───────────────────────────────────────────────────
+function renderHeatmap(rows){
+  // Agregar por dia+hora
+  const map = {};
+  rows.forEach(r=>{
+    const k = r.dia+'_'+r.hora;
+    if(!map[k]) map[k]={dia:r.dia, hora:parseInt(r.hora), ivr:0};
+    map[k].ivr += num(r.ivrs_total);
+  });
+
+  const dias = [...new Set(rows.map(r=>r.dia))].sort();
+  const horas = HORAS;
+  const vals = dias.flatMap(d=>horas.map(h=>(map[d+'_'+h]||{ivr:0}).ivr));
+  const maxV = Math.max(...vals);
+
+  function heatColor(v, max){
+    if(!max||!v) return 'rgba(148,163,184,.12)';
+    const p = v/max;
+    if(p<0.25) return `rgba(99,102,241,${0.15+p*0.5})`;
+    if(p<0.5)  return `rgba(196,40,64,${0.3+p*0.4})`;
+    if(p<0.75) return `rgba(139,28,42,${0.5+p*0.3})`;
+    return `rgba(139,28,42,${0.75+p*0.25})`;
+  }
+
+  // Construir grid
+  // cols: hora labels + N dias; rows: dia rows
+  const colsCount = horas.length + 1;
+  const rowsCount = dias.length + 1;
+
+  let gridHtml = `<div class="hm-wrap"><div class="hm-grid" style="grid-template-columns:80px repeat(${horas.length},36px)">`;
+  // Header row
+  gridHtml += `<div class="hm-hlabel" style="text-align:left;font-size:10px;color:var(--burdo);font-weight:600;padding-bottom:4px">Día \\ Hora</div>`;
+  horas.forEach(h=>{ gridHtml+=`<div class="hm-hlabel">${h}</div>`; });
+  // Data rows
+  dias.forEach(d=>{
+    gridHtml+=`<div class="hm-label" style="text-align:right;font-size:9px">${d.slice(5)}</div>`;
+    horas.forEach(h=>{
+      const v = (map[d+'_'+h]||{ivr:0}).ivr;
+      const col = heatColor(v, maxV);
+      const txt = v>0 ? fmts(v) : '';
+      const fgCol = v/maxV>0.5 ? '#fff' : 'var(--muted)';
+      gridHtml+=`<div class="hm-cell" style="background:${col};color:${fgCol}" title="${d} ${h}:00 → ${fmt(v)} IVRs">${txt}</div>`;
+    });
+  });
+  gridHtml += '</div>';
+
+  // Leyenda
+  const steps = [0,.25,.5,.75,1];
+  gridHtml += `<div class="legend-hm"><span>Menos</span><div class="legend-hm-bar">`;
+  steps.forEach(p=>{
+    const v = Math.round(p*maxV);
+    gridHtml+=`<div style="width:30px;height:14px;border-radius:3px;background:${heatColor(v,maxV)};display:inline-block"></div>`;
+  });
+  gridHtml += `</div><span>Más</span> <span style="color:var(--muted)">· máx: ${fmt(maxV)} IVRs</span></div></div>`;
+
+  document.getElementById('cnt').innerHTML=`
+    <div class="sec-label" style="margin-bottom:12px">Heatmap de Intensidad IVR — Día × Hora del Día</div>
+    <div class="chb" style="overflow-x:auto;margin-bottom:16px">${gridHtml}</div>`;
+}
+
+// ── TAB: POR ENTIDAD ──────────────────────────────────────────────────────────
+function renderEntidad(rows){
+  const ents = curEnt==='ALL' ? [...activeEnts].sort() : [curEnt];
+  let html='';
+
+  ents.forEach((e,ei)=>{
+    const eRows = rows.filter(r=>r.entidad===e);
+    const byHora = aggByKey(eRows, r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key));
+    const byDia  = aggByKey(eRows, r=>r.dia).sort((a,b)=>a._key.localeCompare(b._key));
+    const tot = aggRows(eRows);
+    const col = ENTS_COLORS[ENTS.indexOf(e)%ENTS_COLORS.length];
+    const canvasIdH='chent-hora-'+ei, canvasIdD='chent-dia-'+ei;
+
+    html+=`<div class="chb" style="margin-bottom:16px">
+      <div class="cht" style="font-size:12px;font-weight:600;color:${col}">${e}
+        <span style="font-weight:400;color:var(--muted)">${fmt(tot.ivr)} IVRs · ${fmt(tot.casos)} casos</span>
+      </div>
+      <div class="ch-row" style="margin-bottom:0">
+        <div><div class="cht">Por Hora</div><canvas id="${canvasIdH}" height="180"></canvas></div>
+        <div><div class="cht">Por Día</div><canvas id="${canvasIdD}" height="180"></canvas></div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('cnt').innerHTML=html||'<div style="padding:40px;text-align:center;color:var(--muted)">Sin datos</div>';
+
+  // Crear charts después de insertar en DOM
+  ents.forEach((e,ei)=>{
+    const eRows = rows.filter(r=>r.entidad===e);
+    const byHora = aggByKey(eRows, r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key));
+    const byDia  = aggByKey(eRows, r=>r.dia).sort((a,b)=>a._key.localeCompare(b._key));
+    const col = ENTS_COLORS[ENTS.indexOf(e)%ENTS_COLORS.length];
+
+    const cH = new Chart(document.getElementById('chent-hora-'+ei),{type:'bar',data:{
+      labels:byHora.map(d=>d._key+':00'),
+      datasets:[{label:'IVRs',data:byHora.map(d=>d.ivr),backgroundColor:col+'bb',borderRadius:3}]
+    },options:{responsive:true,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>`IVRs: ${fmt(c.raw)}`}}},
+      scales:{x:{ticks:{color:tC,font:{size:8}},grid:{display:false}},
+              y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+    charts.push(cH);
+
+    const cD = new Chart(document.getElementById('chent-dia-'+ei),{type:'line',data:{
+      labels:byDia.map(d=>d._key.slice(5)),
+      datasets:[{label:'IVRs',data:byDia.map(d=>d.ivr),borderColor:col,backgroundColor:col+'22',tension:.3,fill:true,pointRadius:2}]
+    },options:{responsive:true,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>`IVRs: ${fmt(c.raw)}`}}},
+      scales:{x:{ticks:{color:tC,font:{size:8},autoSkip:true,maxTicksLimit:15},grid:{display:false}},
+              y:{ticks:{color:tC,callback:v=>fmts(v)},grid:{color:gC}}}}});
+    charts.push(cD);
+  });
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────────────────────
+function exportXL(type){
+  const rows = filteredRows();
+  let data;
+  if(type==='entidad'){
+    data = aggByKey(rows,r=>r.entidad).sort((a,b)=>b.ivr-a.ivr).map(d=>({
+      'Entidad':d._key,'IVRs Total':d.ivr,'Casos c/ IVR':d.casos,'Teléfonos c/ IVR':d.tels
+    }));
+  } else if(type==='dia'){
+    data = aggByKey(rows,r=>r.dia).sort((a,b)=>a._key.localeCompare(b._key)).map(d=>({
+      'Fecha':d._key,'IVRs Total':d.ivr,'Casos c/ IVR':d.casos,'Teléfonos c/ IVR':d.tels
+    }));
+  } else if(type==='hora'){
+    data = aggByKey(rows,r=>r.hora).sort((a,b)=>parseInt(a._key)-parseInt(b._key)).map(d=>({
+      'Hora':d._key+':00','IVRs Total':d.ivr,'Casos c/ IVR':d.casos,'Teléfonos c/ IVR':d.tels
+    }));
+  }
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Consumo IVR');
+  XLSX.writeFile(wb,`consumo_ivr_${type}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+document.getElementById('cnt').innerHTML=`
+  <div style="display:flex;align-items:center;justify-content:center;height:200px;gap:10px;color:var(--muted)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+    <span>Cargando datos…</span>
+  </div>`;
+
+loadCSV().catch(e=>{
+  document.getElementById('cnt').innerHTML=`<div style="text-align:center;padding:40px;color:var(--red)"><b>Error al cargar CSV:</b> ${e.message}</div>`;
+});
+</script>
+<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+</body>
+</html>
