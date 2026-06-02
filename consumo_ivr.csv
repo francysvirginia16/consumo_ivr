@@ -1,6 +1,4 @@
 entidad,proveedor,mes,dia,hora,ivrs_total,ivrs_contactados,tasa_contacto_hora,casos_con_ivr,telefonos_con_ivr,casos_unicos_mes,telefonos_unicos_mes
-MEL0,GSM,2026-02,2026-02-28,21,12,0,0.0000,12,12,12,12
-REVO,GSM,2026-02,2026-02-28,21,3,1,0.3333,3,3,3,3
 REVO,GSM,2026-03,2026-03-01,6,338,13,0.0385,335,338,40703,71962
 REVO,GSM,2026-03,2026-03-01,7,388,12,0.0309,382,388,40703,71962
 AUSO,GSM,2026-03,2026-03-01,8,40,2,0.0500,37,38,2164,2849
