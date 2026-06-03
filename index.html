@@ -162,11 +162,33 @@ async function loadCSV(){
   });
   MESES=[...new Set(allRows.map(r=>r.mes))].sort();
   // Fecha de actualización = última fecha del CSV
-  const lastDia=[...new Set(allRows.map(r=>r.dia))].sort().pop();
+  // Fecha de actualización via GitHub API (last commit del archivo)
   const updEl=document.getElementById('mUpd');
-  if(updEl&&lastDia){
-    const [y,m,d]=lastDia.split('-');
-    updEl.textContent='Actualizado al '+d+'/'+m+'/'+y;
+  if(updEl){
+    try{
+      // Detectar repo y path desde la URL actual
+      const loc=window.location.href;
+      const ghMatch=loc.match(/([^/]+)\.github\.io\/([^/?#]+)/);
+      if(ghMatch){
+        const user=ghMatch[1];
+        const repo=ghMatch[2];
+        const apiUrl=`https://api.github.com/repos/${user}/${repo}/commits?path=consumo_ivr.csv&per_page=1`;
+        fetch(apiUrl)
+          .then(r=>r.json())
+          .then(data=>{
+            if(data&&data[0]){
+              const dt=new Date(data[0].commit.committer.date);
+              const dd=String(dt.getDate()).padStart(2,'0');
+              const mm=String(dt.getMonth()+1).padStart(2,'0');
+              const yy=dt.getFullYear();
+              const hh=String(dt.getHours()).padStart(2,'0');
+              const min=String(dt.getMinutes()).padStart(2,'0');
+              updEl.textContent=`Actualizado ${dd}/${mm}/${yy} ${hh}:${min}`;
+            }
+          })
+          .catch(()=>{ updEl.textContent=''; });
+      }
+    }catch(e){}
   }
   ENTS=[...new Set(allRows.map(r=>r.entidad))].sort();
   PROVS=[...new Set(allRows.map(r=>r.proveedor))].sort();
