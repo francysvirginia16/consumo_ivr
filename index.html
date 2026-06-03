@@ -655,26 +655,32 @@ function renderProveedor(rows){
   const totIvr=byProv.reduce((a,d)=>a+d.ivr,0);
   const totProvIvr=byProv.reduce((a,d)=>a+d.ivr,0);
   const tasaTot=totIvr?byProv.reduce((a,d)=>a+d.cont,0)/totIvr:0;
+  // días por proveedor
+  const diasTotProv=[...new Set(rows.map(r=>r.dia))].length;
+  const diasByProv={};
+  byProv.forEach(d=>{diasByProv[d._key]=[...new Set(rows.filter(r=>r.proveedor===d._key).map(r=>r.dia))].length;});
 
   // Tabla resumen por proveedor
   let tProv=`<div class="tbl-header"><div class="sec-label">Resumen por Proveedor</div>
     <button class="xl-btn" onclick="exportXL('proveedor')">↓ Excel</button>
   </div>
   <div class="tbl-wrap"><table class="res"><thead><tr>
-    <th class="tl">Proveedor</th><th>IVRs Total</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
+    <th class="tl">Proveedor</th><th>IVRs Total</th><th>IVR/Día</th><th>Contactados</th><th>Tasa Contacto</th><th>Casos Únicos</th><th>Tels Únicos</th><th>Participación</th>
   </tr></thead><tbody>`;
   byProv.forEach(d=>{
     const col=provColor(d._key);
     const p=totIvr?(d.ivr/totIvr*100).toFixed(1):0;
+    const dprov=diasByProv[d._key]||0;
     tProv+=`<tr><td class="tl"><div class="en" style="color:${col}">${d._key}</div></td>
       <td style="font-weight:600">${fmt(d.ivr)}</td>
+      <td style="color:var(--indigo);font-weight:600">${dprov?fmts(Math.round(d.ivr/dprov)):'—'}</td>
       <td style="color:var(--green)">${fmt(d.cont)}</td>
       <td>${tasaChip(d.tasa)}</td>
       <td>${fmt(d.casosU)}</td><td style="color:var(--teal)">${fmt(d.telsU)}</td>
       <td>${barCell(d.ivr,totProvIvr,col)}</td>
     </tr>`;
   });
-  tProv+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td style="color:var(--green)">${fmt(byProv.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byProv.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byProv.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
+  tProv+=totRow(`<td class="tl">TOTAL</td><td>${fmt(totIvr)}</td><td style="color:var(--indigo);font-weight:600">${diasTotProv?fmts(Math.round(totIvr/diasTotProv)):'—'}</td><td style="color:var(--green)">${fmt(byProv.reduce((a,d)=>a+d.cont,0))}</td><td>${tasaChip(tasaTot)}</td><td>${fmt(byProv.reduce((a,d)=>a+d.casosU,0))}</td><td style="color:var(--teal)">${fmt(byProv.reduce((a,d)=>a+d.telsU,0))}</td><td></td>`);
   tProv+='</tbody></table></div>';
 
   // Tabla proveedor × mes
